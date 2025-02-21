@@ -1,5 +1,6 @@
 construct==2.10.70
 paho-mqtt==2.1.0
 # Editable install with no version control (pylontech==0.1.3)
--e tmp/pylontech-python
+#-e tmp/pylontech-python
+pylontech @ git+https://github.com/Tomcat42/pylontech-python@main
 pyserial==3.5
