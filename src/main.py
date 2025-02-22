@@ -3,23 +3,37 @@ import time
 from pprint import pprint
 import paho.mqtt.client as mqtt
 from pylontech import PylontechStack
+from pprint import pformat
+import logging
 
 
 mqttServer = "192.168.176.3"
-batteryCount = 2
+batteryCount = 4
 serialDevice = '/dev/ttyAMA0'
+logLevel = logging.DEBUG
+updateFrequence = 10 
+
+# Define global Objects
+logger = logging.getLogger(__name__)
+logging.basicConfig(filename='pylontech-monitor.log', level=logLevel)
+
+# define logger for std out
+console = logging.StreamHandler()
+console.setLevel(logging.INFO)
+#formatter = logging.Formatter('%(levelname)-8s %(message)s')
+#console.setFormatter(formatter)
+logging.getLogger('').addHandler(console)
 
 
 mqttc = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-
 mqttc.connect(mqttServer, 1883, 60)
 
 
-print('evaluating the stack of batteries (0..n batteries)')
+logger.info('evaluating the stack of batteries (0..n batteries)')
 x = PylontechStack(serialDevice, baud=115200, manualBattcountLimit=batteryCount)
-print('number of batteries found: {}'.format(x.battcount))
-# print('received data:')
-# print(x.pylonData)
+logger.info('number of batteries found: {}'.format(x.battcount))
+logger.debug('received data:')
+logger.debug(pformat(x.pylonData))
 
 
 # Get list of unit serial
@@ -30,67 +44,60 @@ serials = x.pylonData['SerialNumbers']
 while 1:
     try:
         x.update()
-        print("--- Calculated:")
-        pprint(x.pylonData['Calculated'])
-        print ("---\n\n")
+        logger.debug("--- Calculated:")
+        logger.debug(pformat(x.pylonData['Calculated']))
 
         for key in (x.pylonData['Calculated']).keys():
             if not (key == "VER" or key == "ADR" or key == "PAYLOAD" or key == "LENGTH" or key == "RTN" or key == "ID"):
                 mqttc.publish("pylontech/" + key, "{\"value\":" + str(x.pylonData['Calculated'][key])+"}")
+                logger.debug("pylontech/" + key +" => {\"value\":" + str(x.pylonData['Calculated'][key])+"}")
 
 
-        print("--- SystemParameter:")
-        pprint(x.pylonData['SystemParameter'])
+        logger.debug("--- SystemParameter:")
+        logger.debug(pformat(x.pylonData['SystemParameter']))
 
         for key in (x.pylonData['SystemParameter']).keys():
             if not (key == "VER" or key == "ADR" or key == "PAYLOAD" or key == "LENGTH" or key == "RTN" or key == "ID"):
                 mqttc.publish("pylontech/SystemParameter/" + key, "{\"value\":" + str(x.pylonData['SystemParameter'][key])+"}")
-#            print( "Key: " + key + "  Value:"  +str( x.pylonData['SystemParameter'][key]))
- 
+                logger.debug("pylontech/SystemParameter/" + key + " => {\"value\":" + str(x.pylonData['SystemParameter'][key])+"}")
         
        
         for batteryIndex in range(len(serials)):
-            print("- Expected battery lable is: " + serials[batteryIndex])
-            print("BatteryIndex: " + str(batteryIndex))
+            logger.info("Battery no. " + str(batteryIndex) + " found: " + serials[batteryIndex])
+            logger.debug("pylontech/Unit/" + serials[batteryIndex] + "/SerialNumber" + " => {\"value\":\"" + str(x.pylonData['SerialNumbers'][batteryIndex])+"\"}")
             mqttc.publish("pylontech/Unit/" + serials[batteryIndex] + "/SerialNumber", "{\"value\":\"" + str(x.pylonData['SerialNumbers'][batteryIndex])+"\"}")
 
-            print("--- ChargeDischargeManagementList:")
+            logger.debug("--- ChargeDischargeManagementList:")
             battery = x.pylonData['ChargeDischargeManagementList'][batteryIndex]
-            pprint(battery)
+            logger.debug(pformat(battery))
 
             for key in battery.keys():
                 if not (key == "VER" or key == "ADR" or key == "PAYLOAD" or key == "LENGTH" or key == "RTN" or key == "ID"):
                     mqttc.publish("pylontech/Unit/" + serials[batteryIndex] + "/ChargeDischargeManagement/" + key, "{\"value\":" + str(battery[key])+"}")
+                    logger.debug("pylontech/Unit/" + serials[batteryIndex] + "/ChargeDischargeManagement/" + key + " => {\"value\":" + str(battery[key])+"}")
 
-
-
-            print("--- AlarmInfoList:")
+            logger.debug("--- AlarmInfoList:")
             # Set Battery Pointer to new scope
             battery = x.pylonData['AlarmInfoList'][batteryIndex]
-            pprint(battery)
+            logger.debug(pformat(battery))
             for key in battery.keys():
                 if not (key == "VER" or key == "ADR" or key == "PAYLOAD" or key == "LENGTH" or key == "RTN" or key == "ID"):
                     value = battery[key]
                     if isinstance(value, list):
                         for index in range(len(value)):
                      # Publish each item in the list
-#                           pprint ("key: " + key +  "  Status: " + str(value[index]))
+                            logger.debug ("pylontech/Unit/" + serials[batteryIndex] + "/AlarmInfo/" + key + "/" + str(index+1) + " => {\"value\":" + str(value[index])+"}")
                             mqttc.publish("pylontech/Unit/" + serials[batteryIndex] + "/AlarmInfo/" + key + "/" + str(index+1), "{\"value\":" + str(value[index])+"}")
                     else:
-#                       print("  Key: " + key + "  Value: " + str(x.pylonData['AlarmInfoList'][batteryIndex][key]))
+                        logger.debug("pylontech/Unit/" + serials[batteryIndex] + "/AlarmInfo/"  + key + " => {\"value\":" + str(battery[key])+"}")
                         mqttc.publish("pylontech/Unit/" + serials[batteryIndex] + "/AlarmInfo/"  + key, "{\"value\":" + str(battery[key])+"}")
 
 
-            print("--- AnaloglList:")
-            pprint(x.pylonData['AnaloglList'])
-#        for batteryIndex in range(len(x.pylonData['AnaloglList'])):
-            print("BatteryIndex: " + str(batteryIndex))
+            logger.debug("--- AnaloglList:")
+            logger.debug(pformat(x.pylonData['AnaloglList']))
+            logger.debug("BatteryIndex: " + str(batteryIndex))
             battery = x.pylonData['AnaloglList'][batteryIndex]
 
-#            for key in battery.keys():
-#                mqttc.publish("pylontech/Unit/" + str(batteryIndex) + "/Analog/" + key, battery[key])
-
-            print("AnalogList:")
             for key in battery.keys():
                 if not (key == "VER" or key == "ADR" or key == "PAYLOAD" or key == "LENGTH" or key == "RTN" or key == "ID"):
 
@@ -98,12 +105,12 @@ while 1:
                     if isinstance(value, list):
                         for index in range(len(value)):
                         # Publish each item in the list
-#                           pprint ("key: " + key +  "  Status: " + str(value[index]))
+                            logger.debug ("pylontech/Unit/" + serials[batteryIndex]  + "/" + key + "/" + str(index+1) + " => {\"value\":" + str(value[index])+"}")
                             mqttc.publish("pylontech/Unit/" + serials[batteryIndex]  + "/" + key + "/" + str(index+1), "{\"value\":" + str(value[index])+"}")
                     else:
-#                       print("  Key: " + key + "  Value: " + str(battery[key]))
+                        logger.debug("pylontech/Unit/" + serials[batteryIndex] + "/" + key + " => {\"value\":" + str(battery[key]) + "}")
                         mqttc.publish("pylontech/Unit/" + serials[batteryIndex] + "/" + key, "{\"value\":" + str(battery[key]) + "}")
  
-        time.sleep(10)
+        time.sleep(updateFrequence)
     except Exception as err:
-        print("Timeout ", err)
+        logger.error("Timeout ", err)
