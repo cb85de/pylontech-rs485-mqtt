@@ -1,5 +1,15 @@
 FROM python:3.11
 
+ENV PYLONTECH_MQTT_HOST=localhost
+ENV PYLONTECH_MQTT_PORT=1883
+ENV PYLONTECH_MQTT_TOPIC="pylontech\/"
+ENV PYLONTECH_MQTT_USER=pylontech
+ENV PYLONTECH_MQTT_PASS=pylontech
+ENV PYLONTECH_LOGGING_LEVEL=INFO
+ENV PYLONTECH_UDATE_INTERVAL=10
+ENV PYLONTECH_SERIAL_PORT=/dev/ttyAMA0
+ENV PYLONTECH_BATTERY_COUNT=4
+
 WORKDIR /code
 
 COPY requirements.txt .
@@ -7,10 +17,5 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY src/main.py .
-
-
-
-
-
 
 CMD [ "python", "./main.py" ]
