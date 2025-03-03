@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  pylontech:
+    build: .
+    environment:
+      - PYLONTECH_MQTT_HOST=${PYLONTECH_MQTT_HOST:-localhost}
+      - PYLONTECH_MQTT_PORT=${PYLONTECH_MQTT_PORT:-1883}
+      - PYLONTECH_MQTT_TOPIC=${PYLONTECH_MQTT_TOPIC:-pylontech\/}
+      - PYLONTECH_MQTT_USER=${PYLONTECH_MQTT_USER:-pylontech}
+      - PYLONTECH_MQTT_PASS=${PYLONTECH_MQTT_PASS:-pylontech}
+      - PYLONTECH_LOGGING_LEVEL=${PYLONTECH_LOGGING_LEVEL:-INFO}
+      - PYLONTECH_UDATE_INTERVAL=${PYLONTECH_UDATE_INTERVAL:-10}
+      - PYLONTECH_SERIAL_PORT=${PYLONTECH_SERIAL_PORT:-/dev/ttyAMA0}
+      - PYLONTECH_BATTERY_COUNT=${PYLONTECH_BATTERY_COUNT:-4}
+    volumes:
+      - .:/code
+    devices:
+      - "/dev/ttyAMA0:/dev/ttyAMA0"
+    ports:
+      - "1883:1883"
