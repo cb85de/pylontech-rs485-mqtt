@@ -8,14 +8,14 @@ from pylontech import PylontechStack
 from pprint import pformat
 
 mqttServer = os.environ.get('PYLONTECH_MQTT_HOST', 'localhost')
-mqttPort = os.environ.get('PYLONTECH_MQTT_PORT', 1883)
+mqttPort = int(os.environ.get('PYLONTECH_MQTT_PORT', 1883))
 mqttUser = os.environ.get('PYLONTECH_MQTT_USER')
 mqttPassword = os.environ.get('PYLONTECH_MQTT_PASSWORD')
 mqttTopic = os.environ.get('PYLONTECH_MQTT_TOPIC', 'pylontech/')
-batteryCount = os.environ.get('PYLONTECH_BATTERY_COUNT')
+batteryCount = int(os.environ.get('PYLONTECH_BATTERY_COUNT'))
 serialDevice = os.environ.get('PYLONTECH_SERIAL_PORT', '/dev/ttyAMA0')
 logLevel = os.environ.get('PYLONTECH_LOGGING_LEVEL', 'INFO').upper()
-updateFrequence = os.environ.get('PYLONTECH_UDATE_INTERVAL', 10) 
+updateFrequence = int(os.environ.get('PYLONTECH_UDATE_INTERVAL', 10))
 
 # Define global Objects
 logger = logging.getLogger(__name__)
