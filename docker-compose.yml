@@ -14,7 +14,7 @@ services:
       - PYLONTECH_SERIAL_PORT=${PYLONTECH_SERIAL_PORT:-/dev/ttyAMA0}
       - PYLONTECH_BATTERY_COUNT=${PYLONTECH_BATTERY_COUNT:-4}
     volumes:
-      - .:/code
+      - ./src:/code
     devices:
       - "/dev/ttyAMA0:/dev/ttyAMA0"
     ports:
