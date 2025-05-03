@@ -19,3 +19,4 @@ services:
       - "/dev/ttyAMA0:/dev/ttyAMA0"
     ports:
       - "1883:1883"
+    restart: unless-stopped
