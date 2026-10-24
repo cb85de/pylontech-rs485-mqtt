@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import time
+import json
 #import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
 import logging
@@ -17,6 +18,25 @@ batteryCount = int(os.environ.get('PYLONTECH_BATTERY_COUNT'))
 serialDevice = os.environ.get('PYLONTECH_SERIAL_PORT', '/dev/ttyAMA0')
 logLevel = os.environ.get('PYLONTECH_LOGGING_LEVEL', 'INFO').upper()
 updateFrequence = int(os.environ.get('PYLONTECH_UDATE_INTERVAL', 10))
+
+# MQTT payload {"value": ...} as valid JSON. Telegraf parses it with
+# data_format = "json" into the float field "value" (bucket pv), so:
+# - booleans go out as 1/0: a JSON boolean would conflict with the float
+#   field type in InfluxDB
+# - strings ("Ok", ">65Ah") are quoted; Telegraf ignores string fields
+# Before, str() produced {"value":Ok} / {"value":True} - invalid JSON,
+# several hundred Telegraf parse errors per minute.
+# - other number types (e.g. Decimal) as float, so they stay measurements
+def _json_default(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return str(value)
+
+def payload(value):
+    if isinstance(value, bool):
+        value = int(value)
+    return json.dumps({"value": value}, default=_json_default)
 
 # Define global Objects
 logger = logging.getLogger(__name__)
@@ -54,8 +74,8 @@ while 1:
 
         for key in (x.pylonData['Calculated']).keys():
             if not (key == "VER" or key == "ADR" or key == "PAYLOAD" or key == "LENGTH" or key == "RTN" or key == "ID"):
-                publish.single(mqttTopic + key, "{\"value\":" + str(x.pylonData['Calculated'][key])+"}", hostname=mqttServer)
-                logger.debug(mqttTopic + key +" => {\"value\":" + str(x.pylonData['Calculated'][key])+"}")
+                publish.single(mqttTopic + key, payload(x.pylonData['Calculated'][key]), hostname=mqttServer)
+                logger.debug(mqttTopic + key +" => " + payload(x.pylonData['Calculated'][key]))
 
 
         logger.debug("--- SystemParameter:")
@@ -63,14 +83,14 @@ while 1:
 
         for key in (x.pylonData['SystemParameter']).keys():
             if not (key == "VER" or key == "ADR" or key == "PAYLOAD" or key == "LENGTH" or key == "RTN" or key == "ID"):
-                publish.single(mqttTopic + "SystemParameter/" + key, "{\"value\":" + str(x.pylonData['SystemParameter'][key])+"}", hostname=mqttServer)
-                logger.debug(mqttTopic + "SystemParameter/" + key + " => {\"value\":" + str(x.pylonData['SystemParameter'][key])+"}")
+                publish.single(mqttTopic + "SystemParameter/" + key, payload(x.pylonData['SystemParameter'][key]), hostname=mqttServer)
+                logger.debug(mqttTopic + "SystemParameter/" + key + " => " + payload(x.pylonData['SystemParameter'][key]))
         
        
         for batteryIndex in range(len(serials)):
             logger.info("Battery no. " + str(batteryIndex) + " found: " + serials[batteryIndex])
-            logger.debug(mqttTopic + "Unit/" + serials[batteryIndex] + "/SerialNumber" + " => {\"value\":\"" + str(x.pylonData['SerialNumbers'][batteryIndex])+"\"}")
-            publish.single(mqttTopic + "Unit/" + serials[batteryIndex] + "/SerialNumber", "{\"value\":\"" + str(x.pylonData['SerialNumbers'][batteryIndex])+"\"}", hostname=mqttServer)
+            logger.debug(mqttTopic + "Unit/" + serials[batteryIndex] + "/SerialNumber" + " => " + payload(str(x.pylonData['SerialNumbers'][batteryIndex])))
+            publish.single(mqttTopic + "Unit/" + serials[batteryIndex] + "/SerialNumber", payload(str(x.pylonData['SerialNumbers'][batteryIndex])), hostname=mqttServer)
 
             logger.debug("--- ChargeDischargeManagementList:")
             battery = x.pylonData['ChargeDischargeManagementList'][batteryIndex]
@@ -78,8 +98,8 @@ while 1:
 
             for key in battery.keys():
                 if not (key == "VER" or key == "ADR" or key == "PAYLOAD" or key == "LENGTH" or key == "RTN" or key == "ID"):
-                    publish.single(mqttTopic + "Unit/" + serials[batteryIndex] + "/ChargeDischargeManagement/" + key, "{\"value\":" + str(battery[key])+"}", hostname=mqttServer)
-                    logger.debug( mqttTopic + "Unit/" + serials[batteryIndex] + "/ChargeDischargeManagement/" + key + " => {\"value\":" + str(battery[key])+"}")
+                    publish.single(mqttTopic + "Unit/" + serials[batteryIndex] + "/ChargeDischargeManagement/" + key, payload(battery[key]), hostname=mqttServer)
+                    logger.debug( mqttTopic + "Unit/" + serials[batteryIndex] + "/ChargeDischargeManagement/" + key + " => " + payload(battery[key]))
 
             logger.debug("--- AlarmInfoList:")
             # Set Battery Pointer to new scope
@@ -91,11 +111,11 @@ while 1:
                     if isinstance(value, list):
                         for index in range(len(value)):
                      # Publish each item in the list
-                            logger.debug (mqttTopic + "Unit/" + serials[batteryIndex] + "/AlarmInfo/" + key + "/" + str(index+1) + " => {\"value\":" + str(value[index])+"}")
-                            publish.single(mqttTopic + "Unit/" + serials[batteryIndex] + "/AlarmInfo/" + key + "/" + str(index+1), "{\"value\":" + str(value[index])+"}", hostname=mqttServer)
+                            logger.debug (mqttTopic + "Unit/" + serials[batteryIndex] + "/AlarmInfo/" + key + "/" + str(index+1) + " => " + payload(value[index]))
+                            publish.single(mqttTopic + "Unit/" + serials[batteryIndex] + "/AlarmInfo/" + key + "/" + str(index+1), payload(value[index]), hostname=mqttServer)
                     else:
-                        logger.debug(mqttTopic + "Unit/" + serials[batteryIndex] + "/AlarmInfo/"  + key + " => {\"value\":" + str(battery[key])+"}")
-                        publish.single(mqttTopic + "Unit/" + serials[batteryIndex] + "/AlarmInfo/"  + key, "{\"value\":" + str(battery[key])+"}", hostname=mqttServer)
+                        logger.debug(mqttTopic + "Unit/" + serials[batteryIndex] + "/AlarmInfo/"  + key + " => " + payload(battery[key]))
+                        publish.single(mqttTopic + "Unit/" + serials[batteryIndex] + "/AlarmInfo/"  + key, payload(battery[key]), hostname=mqttServer)
 
 
             logger.debug("--- AnaloglList:")
@@ -110,11 +130,11 @@ while 1:
                     if isinstance(value, list):
                         for index in range(len(value)):
                         # Publish each item in the list
-                            logger.debug (mqttTopic + "Unit/" + serials[batteryIndex]  + "/" + key + "/" + str(index+1) + " => {\"value\":" + str(value[index])+"}")
-                            publish.single(mqttTopic + "Unit/" + serials[batteryIndex]  + "/" + key + "/" + str(index+1), "{\"value\":" + str(value[index])+"}", hostname=mqttServer)
+                            logger.debug (mqttTopic + "Unit/" + serials[batteryIndex]  + "/" + key + "/" + str(index+1) + " => " + payload(value[index]))
+                            publish.single(mqttTopic + "Unit/" + serials[batteryIndex]  + "/" + key + "/" + str(index+1), payload(value[index]), hostname=mqttServer)
                     else:
-                        logger.debug(mqttTopic + "Unit/" + serials[batteryIndex] + "/" + key + " => {\"value\":" + str(battery[key]) + "}")
-                        publish.single(mqttTopic + "Unit/" + serials[batteryIndex] + "/" + key, "{\"value\":" + str(battery[key]) + "}", hostname=mqttServer)
+                        logger.debug(mqttTopic + "Unit/" + serials[batteryIndex] + "/" + key + " => " + payload(battery[key]))
+                        publish.single(mqttTopic + "Unit/" + serials[batteryIndex] + "/" + key, payload(battery[key]), hostname=mqttServer)
  
         time.sleep(updateFrequence)
     except Exception as err:
